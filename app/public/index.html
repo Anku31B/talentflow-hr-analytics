@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TalentFlow · Hiring Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">TF</div>
+      <div>
+        <div class="brand-name">TalentFlow</div>
+        <div class="brand-sub">Hiring analytics · MySQL</div>
+      </div>
+    </div>
+    <nav id="nav">
+      <a href="#overview" data-view="overview">
+        <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z"/></svg>Overview</a>
+      <a href="#jobs" data-view="jobs">
+        <svg viewBox="0 0 24 24"><path d="M10 4h4a2 2 0 0 1 2 2v1h4a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4V6a2 2 0 0 1 2-2zm0 3h4V6h-4z"/></svg>Job Postings</a>
+      <a href="#candidates" data-view="candidates">
+        <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zM8 12a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm8 1c-2.7 0-8 1.3-8 4v3h16v-3c0-2.7-5.3-4-8-4zM8 14c-.3 0-.7 0-1.1.1A4.7 4.7 0 0 1 6 17v3H0v-2.5C0 15.6 5 14 8 14z"/></svg>Candidates</a>
+      <a href="#recruiters" data-view="recruiters">
+        <svg viewBox="0 0 24 24"><path d="M12 2l3 6.3 6.9.9-5 4.8 1.2 6.9L12 17.6 5.9 20.9 7.1 14l-5-4.8 6.9-.9z"/></svg>Recruiters</a>
+      <a href="#sql" data-view="sql">
+        <svg viewBox="0 0 24 24"><path d="M12 2C7 2 3 3.8 3 6v12c0 2.2 4 4 9 4s9-1.8 9-4V6c0-2.2-4-4-9-4zm0 2c4.4 0 7 1.4 7 2s-2.6 2-7 2-7-1.4-7-2 2.6-2 7-2zm7 14c0 .6-2.6 2-7 2s-7-1.4-7-2v-2.4c1.7.9 4.2 1.4 7 1.4s5.3-.5 7-1.4zm0-6c0 .6-2.6 2-7 2s-7-1.4-7-2V9.6C6.7 10.5 9.2 11 12 11s5.3-.5 7-1.4z"/></svg>SQL Explorer</a>
+    </nav>
+    <div class="sidebar-foot">
+      <span class="dot" id="db-dot"></span><span id="db-status">Connecting…</span>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ─────────────── OVERVIEW ─────────────── -->
+    <section class="view" id="view-overview">
+      <header class="page-head">
+        <div>
+          <h1>Hiring overview</h1>
+          <p class="muted">Funnel health, channel performance and hiring velocity across all requisitions.</p>
+        </div>
+      </header>
+      <div class="kpis" id="kpis"></div>
+      <div class="grid g-2">
+        <div class="card">
+          <div class="card-head"><h3>Hiring funnel</h3><span class="muted small">Applications reaching each stage</span></div>
+          <div id="funnel" class="funnel"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Applications &amp; hires by month</h3></div>
+          <div class="chart-box"><canvas id="chart-trend"></canvas></div>
+        </div>
+      </div>
+      <div class="grid g-2">
+        <div class="card">
+          <div class="card-head"><h3>Source effectiveness</h3><span class="muted small">Application → hire rate vs. cost per hire</span></div>
+          <div class="chart-box"><canvas id="chart-sources"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Departments</h3><span class="muted small">Hires and average days to hire</span></div>
+          <div class="chart-box"><canvas id="chart-depts"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────── JOBS ─────────────── -->
+    <section class="view" id="view-jobs" hidden>
+      <header class="page-head">
+        <div>
+          <h1>Job postings</h1>
+          <p class="muted">Every requisition with its live pipeline. Click a row to see its applicants.</p>
+        </div>
+        <button class="btn primary" id="btn-new-job">+ New posting</button>
+      </header>
+      <div class="toolbar">
+        <select id="job-status"><option value="">All statuses</option><option>Open</option><option>On Hold</option><option>Filled</option><option>Closed</option></select>
+        <select id="job-dept"><option value="">All departments</option></select>
+        <span class="muted small" id="job-count"></span>
+      </div>
+      <div class="card flush"><div class="table-wrap"><table id="jobs-table"></table></div></div>
+    </section>
+
+    <!-- ─────────────── CANDIDATES ─────────────── -->
+    <section class="view" id="view-candidates" hidden>
+      <header class="page-head">
+        <div>
+          <h1>Candidates</h1>
+          <p class="muted">All applications. Change a stage to move someone through the pipeline — offers and job status update automatically.</p>
+        </div>
+      </header>
+      <div class="toolbar">
+        <input type="search" id="cand-q" placeholder="Search name, role or city…" />
+        <select id="cand-stage"><option value="">All stages</option></select>
+        <select id="cand-source"><option value="">All sources</option></select>
+        <span class="muted small" id="cand-count"></span>
+      </div>
+      <div class="card flush"><div class="table-wrap"><table id="cand-table"></table></div></div>
+      <div class="pager"><button class="btn" id="cand-prev">← Prev</button><span id="cand-page" class="muted small"></span><button class="btn" id="cand-next">Next →</button></div>
+    </section>
+
+    <!-- ─────────────── RECRUITERS ─────────────── -->
+    <section class="view" id="view-recruiters" hidden>
+      <header class="page-head">
+        <div>
+          <h1>Recruiter scorecard</h1>
+          <p class="muted">Offers, hires, acceptance rate and speed for each recruiter.</p>
+        </div>
+      </header>
+      <div class="grid g-2 rec-grid">
+        <div class="card flush"><div class="table-wrap"><table id="rec-table"></table></div></div>
+        <div class="card">
+          <div class="card-head"><h3>Offer acceptance rate</h3></div>
+          <div class="chart-box tall"><canvas id="chart-rec"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────── SQL EXPLORER ─────────────── -->
+    <section class="view" id="view-sql" hidden>
+      <header class="page-head">
+        <div>
+          <h1>SQL Explorer</h1>
+          <p class="muted">The 12 business questions from <code>sql/04_queries.sql</code>, run live against MySQL.</p>
+        </div>
+      </header>
+      <div class="sql-layout">
+        <div class="card flush q-list" id="q-list"></div>
+        <div class="q-detail">
+          <div class="card">
+            <div class="card-head">
+              <div><span class="pill" id="q-level"></span><h3 id="q-title"></h3></div>
+              <button class="btn primary" id="q-run">▶ Run query</button>
+            </div>
+            <p class="muted" id="q-desc"></p>
+            <pre class="sql" id="q-sql"></pre>
+          </div>
+          <div class="card flush">
+            <div class="result-head"><strong>Result</strong><span class="muted small" id="q-meta"></span></div>
+            <div class="table-wrap result"><table id="q-result"></table></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Applicants drawer -->
+  <div class="drawer-bg" id="drawer-bg" hidden></div>
+  <aside class="drawer" id="drawer" hidden>
+    <div class="drawer-head">
+      <div><h2 id="drawer-title"></h2><div class="muted small" id="drawer-sub"></div></div>
+      <button class="icon-btn" id="drawer-close" aria-label="Close">✕</button>
+    </div>
+    <div class="table-wrap"><table id="drawer-table"></table></div>
+  </aside>
+
+  <!-- New job modal -->
+  <dialog id="job-dialog">
+    <form id="job-form" method="dialog">
+      <h2>New job posting</h2>
+      <label>Title<input name="title" required placeholder="e.g. Data Engineer" /></label>
+      <div class="row">
+        <label>Department<select name="dept_id" id="f-dept" required></select></label>
+        <label>Recruiter<select name="recruiter_id" id="f-rec" required></select></label>
+      </div>
+      <div class="row">
+        <label>Seniority<select name="seniority"><option>Junior</option><option selected>Mid</option><option>Senior</option><option>Lead</option></select></label>
+        <label>Type<select name="employment"><option>Full-time</option><option>Contract</option><option>Intern</option></select></label>
+        <label>Openings<input name="openings" type="number" min="1" max="20" value="1" /></label>
+      </div>
+      <div class="row">
+        <label>Salary min (₹/yr)<input name="salary_min" type="number" min="0" step="10000" required placeholder="1200000" /></label>
+        <label>Salary max (₹/yr)<input name="salary_max" type="number" min="0" step="10000" required placeholder="1800000" /></label>
+      </div>
+      <p class="error" id="job-error"></p>
+      <div class="actions">
+        <button type="button" class="btn" id="job-cancel">Cancel</button>
+        <button type="submit" class="btn primary">Create posting</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

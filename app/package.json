@@ -1,0 +1,18 @@
+{
+  "name": "talent-acquisition-dashboard",
+  "version": "1.0.0",
+  "description": "Recruiting analytics dashboard on a MySQL talent acquisition database",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node demo.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "mysql-memory-server": "^1.16.0",
+    "mysql2": "^3.11.3"
+  }
+}

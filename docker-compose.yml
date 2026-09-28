@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ta-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-talent123}
+    ports:
+      - "${DB_PORT:-3307}:3306"
+    volumes:
+      # Runs once on first start, in filename order
+      - ./sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./sql/02_seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+      - ./sql/03_views.sql:/docker-entrypoint-initdb.d/03_views.sql:ro
+      - ta-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:-talent123}"]
+      interval: 5s
+      retries: 20
+
+volumes:
+  ta-mysql-data:
