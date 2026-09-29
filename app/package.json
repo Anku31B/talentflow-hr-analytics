@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "demo": "node demo.js",
+    "snapshot": "node export-snapshot.js",
     "dev": "node --watch server.js"
   },
   "dependencies": {

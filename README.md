@@ -70,6 +70,17 @@ mysql -u root -p < sql/03_views.sql
 
 Then put your credentials in `app/.env` (copy it from `.env.example`) and run `npm install && npm start` inside `app/`.
 
+### Hosting for free (static snapshot)
+
+If the dashboard can't reach a database, it loads `app/public/data/snapshot.json` instead. That file holds real results exported from MySQL, so the site works on free static hosts such as Vercel. Everything can be browsed, searched and filtered, and all 12 SQL queries show their results. Edits stay in the visitor's browser and reset on reload.
+
+After changing any SQL, rebuild the snapshot and push:
+
+```bash
+cd app
+npm run snapshot
+```
+
 ---
 
 ## Project structure

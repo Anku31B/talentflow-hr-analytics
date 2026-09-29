@@ -7,6 +7,7 @@ const badge = (s) => (s ? `<span class="badge b-${esc(s)}">${esc(s)}</span>` : '
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 async function api(url, opts = {}) {
+  if (SNAP) return snapshotApi(url, opts);
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
@@ -15,6 +16,64 @@ async function api(url, opts = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
+}
+
+// ─────────────────────────── snapshot mode ───────────────────────────
+// When no database is reachable (static hosting), the dashboard serves the same
+// API from data/snapshot.json (built by `npm run snapshot`). Edits apply in this
+// browser only and reset on reload.
+let SNAP = null;
+const STAGE_KEY = { Applied: 'in_applied', Screening: 'in_screening', Interview: 'in_interview', Offer: 'in_offer', Hired: 'hired' };
+
+async function snapshotApi(url, { method = 'GET', body } = {}) {
+  const u = new URL(url, location.origin);
+  const p = u.searchParams;
+  const parts = u.pathname.replace(/^\/api\//, '').split('/');
+  const fail = (msg) => { throw new Error(msg); };
+
+  if (method === 'GET' && parts.length === 1 && ['kpis', 'funnel', 'trend', 'sources', 'departments', 'meta', 'recruiters', 'queries'].includes(parts[0])) {
+    return SNAP[parts[0]];
+  }
+  if (parts[0] === 'jobs' && parts.length === 1 && method === 'GET') {
+    return SNAP.jobs.filter((j) => (!p.get('status') || j.status === p.get('status')) && (!p.get('department') || j.department === p.get('department')));
+  }
+  if (parts[0] === 'jobs' && parts[2] === 'applicants') return SNAP.applicants[parts[1]] || [];
+  if (parts[0] === 'jobs' && method === 'POST') {
+    if (!body.title || !body.dept_id || !body.recruiter_id || !body.salary_min || !body.salary_max) fail('title, department, recruiter and salary band are required');
+    if (Number(body.salary_max) < Number(body.salary_min)) fail('Max salary must be at least min salary');
+    const job_id = Math.max(...SNAP.jobs.map((j) => j.job_id)) + 1;
+    SNAP.jobs.unshift({
+      job_id, title: body.title, status: 'Open', seniority: body.seniority || 'Mid', openings: Number(body.openings) || 1,
+      department: META.departments.find((d) => d.dept_id === Number(body.dept_id))?.name,
+      recruiter: META.recruiters.find((r) => r.recruiter_id === Number(body.recruiter_id))?.name,
+      posted_date: new Date().toISOString().slice(0, 10), closed_date: null, days_open: 0,
+      total_applicants: 0, in_applied: 0, in_screening: 0, in_interview: 0, in_offer: 0, hired: 0,
+    });
+    return { job_id };
+  }
+  if (parts[0] === 'candidates') {
+    const q = (p.get('q') || '').toLowerCase();
+    const rows = SNAP.candidates.filter((c) =>
+      (!q || [c.candidate_name, c.job_title, c.city].some((v) => String(v).toLowerCase().includes(q))) &&
+      (!p.get('stage') || c.current_stage === p.get('stage')) &&
+      (!p.get('source') || c.source === p.get('source')));
+    const offset = Number(p.get('offset')) || 0;
+    return { total: rows.length, rows: rows.slice(offset, offset + (Number(p.get('limit')) || 50)) };
+  }
+  if (parts[0] === 'applications' && method === 'PATCH') {
+    const id = Number(parts[1]);
+    const cand = SNAP.candidates.find((c) => c.app_id === id) || fail('Application not found');
+    const from = cand.current_stage;
+    const job = SNAP.jobs.find((j) => j.job_id === cand.job_id);
+    if (job && STAGE_KEY[from]) job[STAGE_KEY[from]]--;
+    if (job && STAGE_KEY[body.stage]) job[STAGE_KEY[body.stage]]++;
+    cand.current_stage = body.stage;
+    const appRow = (SNAP.applicants[cand.job_id] || []).find((a) => a.app_id === id);
+    if (appRow) appRow.current_stage = body.stage;
+    return { app_id: id, from, to: body.stage };
+  }
+  if (parts[0] === 'queries' && parts[2] === 'run') return SNAP.queryResults[parts[1]] || fail('Unknown query');
+  fail(`Not available in snapshot mode: ${url}`);
 }
 
 function toast(msg) {
@@ -224,7 +283,7 @@ document.addEventListener('change', async (e) => {
   const { app, current } = sel.dataset;
   try {
     const r = await api(`/api/applications/${app}`, { method: 'PATCH', body: { stage: sel.value } });
-    toast(`Moved application #${r.app_id}: ${r.from} → ${r.to}`);
+    toast(`Moved application #${r.app_id}: ${r.from} → ${r.to}${SNAP ? ' (this browser only)' : ''}`);
     stageCallbacks.get(app)?.();
   } catch (err) {
     sel.value = current;
@@ -251,7 +310,7 @@ $('#job-form').onsubmit = async (e) => {
   try {
     const r = await api('/api/jobs', { method: 'POST', body });
     dlg.close();
-    toast(`Created job #${r.job_id}`);
+    toast(`Created job #${r.job_id}${SNAP ? ' (this browser only)' : ''}`);
     $('#job-status').value = 'Open';
     loadJobs();
   } catch (err) {
@@ -386,10 +445,20 @@ $('#q-run').onclick = runQuery;
     $('#db-dot').className = 'dot ok';
     $('#db-status').textContent = 'Connected to MySQL';
   } catch (e) {
-    $('#db-dot').className = 'dot err';
-    $('#db-status').textContent = 'Database unreachable';
-    toast(e.message);
-    return;
+    try {
+      const res = await fetch('data/snapshot.json');
+      if (!res.ok) throw new Error();
+      SNAP = await res.json();
+      META = SNAP.meta;
+      $('#db-dot').className = 'dot';
+      $('#db-status').textContent = `MySQL snapshot · ${SNAP.generated_at.slice(0, 10)}`;
+      $('#db-status').title = 'Static demo: results were exported from MySQL. Edits stay in this browser and reset on reload.';
+    } catch {
+      $('#db-dot').className = 'dot err';
+      $('#db-status').textContent = 'Database unreachable';
+      toast(e.message);
+      return;
+    }
   }
   const deptOpts = META.departments.map((d) => `<option>${esc(d.name)}</option>`).join('');
   $('#job-dept').insertAdjacentHTML('beforeend', deptOpts);
